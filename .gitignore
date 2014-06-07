@@ -1,4 +1,4 @@
 actorfile.csv
 *.class
 *.project
-.settings
+.settings/
