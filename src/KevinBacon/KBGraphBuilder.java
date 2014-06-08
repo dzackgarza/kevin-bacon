@@ -18,80 +18,86 @@ class KBGraphBuilder {
 	// 	File containing 156,467 actor/movie pairs. 
 	static String fileIn = "actorfile.csv";
 	
-	// 	Hashes actor names to their associated vertex objects.
+	// 	Hashes actor names to their associated vertex objects. Allows lookup by name.
 	private HashMap<String, Actor> actorMap = new HashMap<String, Actor>();
 	
-	// 	Hashes movies to lists of their cast lists.
-	private HashMap<String, HashSet<String>> movieMap = new HashMap<String, HashSet<String>>();
+	// 	Hashes movies to their cast lists. Used for edge creation between Actors.
+	private HashMap<Movie, HashSet<Actor>> movieMap = new HashMap<Movie, HashSet<Actor>>();
+	
+	private HashMap<String, Movie> movieList = new HashMap<String, Movie>();
 		
 	/* 	Actors are vertices that maintain adjacency sets of coActors. */
 	class Actor {
 		public String actorName;
-		// 	Each actor maintains a list of movies they have been in.
-		public HashSet<String> movies;
-		// 	Each Actor maintains a list of coactors, whose names hash to the movies shared with the Actor.
-	    public HashMap<Actor, Movie> coActors;
+		
+		// 	Each Actor maintains a list of coActors, whose names hash to the movies shared with the Actor.
+	    public HashMap<Actor, Movie> coActors = new HashMap<Actor, Movie>();
 	    
 	    /* 	Variables used for shortest path algorithms */
-	    public int distance; 			// Keeps track of its distance from root in BFS.
-	    public Actor previousInPath; 	// Used for backtracking.
+	    public int baconNumber = Integer.MAX_VALUE; // Keeps track of its distance from root in BFS.
+	    public Actor previousInPath = null; 		// Used for backtracking.
+	    public boolean visited = false;
 	    
-	    /* 	Default constructor, initializes variables. */
-	    public Actor (String name){
-	    	actorName = name;
-	    	coActors = new HashMap<Actor, Movie>();
-	    	movies = new HashSet<String>();
-	    	distance = Integer.MAX_VALUE;
-	    	previousInPath = null;
+	    /* 	Default constructor, sets name. */
+	    public Actor (String name) { actorName = name; }
+	    
+	    public boolean equals(Actor B) {
+	    	if (this.actorName.equalsIgnoreCase(B.actorName)) return true;
+	    	else return false;
 	    }
 	}
 	
-	/* Just an abstraction to make the HashMaps more intuitive. */
-	class Movie {
-		public String movieName;
-		
-		public Movie(String name) {
-			movieName = name;
-		}
-	}
-	
-	
 	class Graph {
 		
-		/* 	Adds to an Actor's coActor list. */
-		public void addCoActor(String source, String destination, String movie) {
-			Actor s = getActor(source);
-			Actor d = getActor(destination);
-			s.coActors.put(d, new Movie(movie));
+		/* 	Adds to an Actor's list of coActors. */
+		public void addCoActor(Actor source, Actor destination, Movie movie) {
+			source.coActors.put(destination, movie);
 		}
 		
 		/* 	Creates new Actor objects. */
-		public void addActor(String actor, String movie) {
-			Actor s = getActor(actor);
-			s.movies.add(movie); // Duplications should be taken care of by HashSet
-			updateMovieList(actor, movie);
+		public void addActor(String actorName, String movieName) {
+			Actor a = getActor(actorName);
+			updateMovieList(a, getMovie(movieName));
 		}
 		
-		/* 	Given a movie, adds an actor to the list of actors for that movie. If the movie
-		 	hasn't been added yet, adds it and initializes the list with the given actor. */
-		public void updateMovieList(String actor, String movie) {
-			HashSet<String> cast = (HashSet<String>) movieMap.get(movie);
-			if (cast == null) {
-				cast = new HashSet<String>();
-				movieMap.put(movie, cast);
+		public Movie getMovie(String movieName) {
+			Movie m = (Movie) movieList.get(movieName);
+			if (m == null) {
+				m = new Movie(movieName);
+				movieList.put(movieName, m);
 			}
-			cast.add(actor);
+			return m;
 		}
 		
 		/* 	Lookup and return a Actor by name - also creates one if it doesn't exist. */
 		public Actor getActor(String actorName) {
-			Actor v = (Actor) actorMap.get(actorName);
-			if (v == null) {
-				v = new Actor(actorName);
-				actorMap.put(actorName, v);
+			Actor a = (Actor) actorMap.get(actorName);
+			if (a == null) {
+				a = new Actor(actorName);
+				actorMap.put(actorName, a);
 			}
-			return v;
+			return a;
 		}
+		
+		/* 	Given a movie, adds an actor to the list of actors for that movie. If the movie
+		 * 	hasn't been added yet, adds it and initializes the list with the given actor. 
+		 *  
+		 *  The movie list is maintained to minimize the process of creating edges, which
+		 *  will go as O(n^2) with the number of actors per movie.
+		 */
+		public void updateMovieList(Actor actor, Movie movie) {
+			HashSet<Actor> movieCast = (HashSet<Actor>) movieMap.get(movie);
+			if (movieCast == null) {
+				movieCast = new HashSet<Actor>();
+				movieMap.put(movie, movieCast);
+			}
+			movieCast.add(actor);
+		}
+	}
+	
+	class Movie {
+		String movieName;
+		public Movie(String name) { movieName = name; } 
 	}
 	
 	/* 	Reads actors and movies from fileIn and constructs a graph. */ 
@@ -129,31 +135,32 @@ class KBGraphBuilder {
 		return g;
 	}
 	
-	/* 	If two actors have been together in a given movie, builds an edge between them.
-	 	Note - pressure point for speed. Could use tweaking. Short lists, but O(n^2) for actors. */
+	/* 	If two actors have been together in a given movie, builds an edge 
+	 * 	between them. Short lists, but O(n^2) for actors. Might be able 
+	 * 	to thread, since order doesn't matter. 
+	 */
 	public void buildEdges (Graph g) {
 		System.out.println("Building edges...");
 		
-		for (Entry<String, HashSet<String>> s : movieMap.entrySet()) {
-			String key = s.getKey();
-			HashSet<String> actors = s.getValue();
-			for (String w : actors) {
-				for (String u : actors) {
-					 if ( u != w) g.addCoActor(u, w, key);
+		for (Entry<Movie, HashSet<Actor>> s : movieMap.entrySet()) {
+			Movie movie = s.getKey();
+			HashSet<Actor> actors = s.getValue();
+			for (Actor A : actors) {
+				for (Actor B : actors) {
+					 if ( !A.equals(B) ) 
+						 g.addCoActor(A, B, movie);
 				}
 			}
 		}
-		
 		System.out.println("Completed.");
 	}
 	
 	public void getShortestPath(Graph g, String actor1, String actor2) {
 		Actor A = g.getActor(actor1);
 		Actor B = g.getActor(actor2);
-		A.distance = 0;
 		
 		BFS(g, A, B);
-		printPath(g,A,B);
+		printPath(g, A, B);
 	}
 	
 	/*	Visits all nodes in a breadth-first search according to:
@@ -167,47 +174,51 @@ class KBGraphBuilder {
 	public void BFS(Graph g, Actor A, Actor B) {
 		System.out.println("Finding shortest path..");
 		
-		int timer = 0;
 		long begin = System.currentTimeMillis();
 		Queue<Actor> q = new LinkedList<Actor>();
-		HashSet<Actor> visitedActors = new HashSet<Actor>();
-
+		
+		A.baconNumber = 0;
 		q.add(A); // Enqueue the root node.
+		
 		while (!q.isEmpty()) {
 			
-			// Dequeue and examine. *(poll throws null instead of an exception)
-			Actor current = q.poll(); 
-			visitedActors.add(current);
-			if (timer++ % 10000 == 0)
-				System.out.print("#");
-			if (timer % 100000 == 0)
-				System.out.print("\n");
+			// Dequeue and examine.
+			Actor current = q.remove();
+			if (current.equals(B)) break;
 			
+			// Not found, so mark as visited.
+			current.visited = true;
+			
+			// Queue all coActors.
 			for (Actor a_i : current.coActors.keySet()) {
-				if (!visitedActors.contains(a_i)) {
+				if (!a_i.visited) {
 					q.add(a_i);
-					a_i.distance = current.distance + 1;
-					a_i.previousInPath = current;
+					//  All of current's coActors are one level deeper in the tree.
+					a_i.baconNumber = current.baconNumber + 1;
+					//  Leave bread crumbs back to Actor A / root.
+					a_i.previousInPath = current;	
 				}
-				//if (a_i == B) return;
 			}
 		}	
 		
 		System.out.print("\n");
 		System.out.println("Traversal: Time elapsed " + 
-				(System.currentTimeMillis() - begin)/1000.0 + "seconds.");
+				(System.currentTimeMillis() - begin)/1000.0 + " seconds.");
 	} 	// End BFS
 	
 	public void printPath (Graph g, Actor A, Actor B) {
 		Actor start = A;
 		Actor destination = B;
 		
-		System.out.println(B.actorName + " has a Bacon number of " + B.distance);
+		System.out.println(B.actorName + " has a Bacon number of " + B.baconNumber);
 		while (destination != start) {
-			System.out.println(destination.actorName + " was in " +
-					destination.coActors.get(destination.previousInPath.actorName) 
-					+ "with " +
-					destination.previousInPath.actorName);
+			System.out.println(
+					destination.actorName 
+					+ " was in " +
+					destination.coActors.get(destination.previousInPath).movieName 
+					+ " with " +
+					destination.previousInPath.actorName
+					);
 			destination = destination.previousInPath;
 		}
 		
