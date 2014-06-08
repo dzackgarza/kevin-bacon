@@ -13,7 +13,7 @@ import java.util.Queue;
 class KBGraphBuilder {
 	// Actors to search for.
 	String actor1 = "Kevin Bacon";
-	String actor2 = "Adam Hendershott";
+	String actor2 = "William Shatner";
 	
 	// 	File containing 156,467 actor/movie pairs. 
 	static String fileIn = "actorfile.csv";
@@ -27,7 +27,8 @@ class KBGraphBuilder {
 	private HashMap<String, Movie> movieList = new HashMap<String, Movie>();
 		
 	/* 	Actors are vertices that maintain adjacency sets of coActors. */
-	class Actor {
+	class Actor 
+	{
 		public String actorName;
 		
 		// 	Each Actor maintains a list of coActors, whose names hash to the movies shared with the Actor.
@@ -36,7 +37,6 @@ class KBGraphBuilder {
 	    /* 	Variables used for shortest path algorithms */
 	    public int baconNumber = Integer.MAX_VALUE; // Keeps track of its distance from root in BFS.
 	    public Actor previousInPath = null; 		// Used for backtracking.
-	    public boolean visited = false;
 	    
 	    /* 	Default constructor, sets name. */
 	    public Actor (String name) { actorName = name; }
@@ -47,8 +47,8 @@ class KBGraphBuilder {
 	    }
 	}
 	
-	class Graph {
-		
+	class Graph 
+	{
 		/* 	Adds to an Actor's list of coActors. */
 		public void addCoActor(Actor source, Actor destination, Movie movie) {
 			source.coActors.put(destination, movie);
@@ -85,7 +85,8 @@ class KBGraphBuilder {
 		 *  The movie list is maintained to minimize the process of creating edges, which
 		 *  will go as O(n^2) with the number of actors per movie.
 		 */
-		public void updateMovieList(Actor actor, Movie movie) {
+		public void updateMovieList(Actor actor, Movie movie) 
+		{
 			HashSet<Actor> movieCast = (HashSet<Actor>) movieMap.get(movie);
 			if (movieCast == null) {
 				movieCast = new HashSet<Actor>();
@@ -95,13 +96,15 @@ class KBGraphBuilder {
 		}
 	}
 	
-	class Movie {
+	class Movie 
+	{
 		String movieName;
 		public Movie(String name) { movieName = name; } 
 	}
 	
 	/* 	Reads actors and movies from fileIn and constructs a graph. */ 
-	public Graph buildVerticesFromFile() {
+	public Graph buildVerticesFromFile() 
+	{
 		BufferedReader in = null;
 		String line;
 		Graph g = new Graph();
@@ -139,7 +142,8 @@ class KBGraphBuilder {
 	 * 	between them. Short lists, but O(n^2) for actors. Might be able 
 	 * 	to thread, since order doesn't matter. 
 	 */
-	public void buildEdges (Graph g) {
+	public void buildEdges (Graph g) 
+	{
 		System.out.println("Building edges...");
 		
 		for (Entry<Movie, HashSet<Actor>> s : movieMap.entrySet()) {
@@ -155,12 +159,15 @@ class KBGraphBuilder {
 		System.out.println("Completed.");
 	}
 	
-	public void getShortestPath(Graph g, String actor1, String actor2) {
+	public void getShortestPath(Graph g, String actor1, String actor2) 
+	{
 		Actor A = g.getActor(actor1);
 		Actor B = g.getActor(actor2);
 		
-		BFS(g, A, B);
-		printPath(g, A, B);
+		BFS(A, B);
+		System.out.println(B.actorName + " has a Bacon number of " + B.baconNumber);
+		
+		printPath(A, B);
 	}
 	
 	/*	Visits all nodes in a breadth-first search according to:
@@ -171,32 +178,36 @@ class KBGraphBuilder {
 	 * 		2b: Otherwise, enqueue coActors.
 	 * 	3: Repeat until queue is empty.
 	 */
-	public void BFS(Graph g, Actor A, Actor B) {
+	public void BFS(Actor A, Actor B) 
+	{
 		System.out.println("Finding shortest path..");
 		
 		long begin = System.currentTimeMillis();
 		Queue<Actor> q = new LinkedList<Actor>();
+		HashSet<Actor> visited = new HashSet<Actor>();
 		
 		A.baconNumber = 0;
 		q.add(A); // Enqueue the root node.
 		
-		while (!q.isEmpty()) {
-			
+		while (!q.isEmpty()) 
+		{
 			// Dequeue and examine.
-			Actor current = q.remove();
-			if (current.equals(B)) break;
+			Actor current = (Actor) q.remove();
+			if (current.equals(B)) return;
 			
 			// Not found, so mark as visited.
-			current.visited = true;
+			visited.add(current);
 			
-			// Queue all coActors.
-			for (Actor a_i : current.coActors.keySet()) {
-				if (!a_i.visited) {
-					q.add(a_i);
+			/// Queue all coActors.
+			for (Actor a_i : current.coActors.keySet()) 
+			{
+				if (!visited.contains(a_i)) 
+				{
 					//  All of current's coActors are one level deeper in the tree.
 					a_i.baconNumber = current.baconNumber + 1;
 					//  Leave bread crumbs back to Actor A / root.
-					a_i.previousInPath = current;	
+					a_i.previousInPath = current;
+					q.add(a_i);
 				}
 			}
 		}	
@@ -204,21 +215,50 @@ class KBGraphBuilder {
 		System.out.print("\n");
 		System.out.println("Traversal: Time elapsed " + 
 				(System.currentTimeMillis() - begin)/1000.0 + " seconds.");
+		visited.clear();
 	} 	// End BFS
 	
-	public void printPath (Graph g, Actor A, Actor B) {
+	public void BFS2 (Actor A, Actor B) 
+	{
+		long begin = System.currentTimeMillis();
+		Queue<Actor> qA = new LinkedList<Actor>();
+		Queue<Actor> qB = new LinkedList<Actor>();
+		HashSet<Actor> visitedA = new HashSet<Actor>();
+		HashSet<Actor> visitedB = new HashSet<Actor>();
+		
+		A.baconNumber = 0;
+		
+		qA.add(A);
+		qB.add(B);
+		
+		boolean searchingA = false;
+		
+		while (!qA.isEmpty() && !qB.isEmpty()) {
+			searchingA = !searchingA;
+			if (searchingA) {
+				
+			}
+			else 
+			{
+				
+			}
+		}
+	}
+	
+	public void printPath (Actor A, Actor B) 
+	{
 		Actor start = A;
 		Actor destination = B;
 		
-		System.out.println(B.actorName + " has a Bacon number of " + B.baconNumber);
-		while (destination != start) {
+		while (destination != start) 
+		{
+			Actor closestActor = destination.previousInPath;
 			System.out.println(
 					destination.actorName 
 					+ " was in " +
-					destination.coActors.get(destination.previousInPath).movieName 
+					(destination.coActors.get(closestActor)).movieName 
 					+ " with " +
-					destination.previousInPath.actorName
-					);
+					closestActor.actorName);
 			destination = destination.previousInPath;
 		}
 		
